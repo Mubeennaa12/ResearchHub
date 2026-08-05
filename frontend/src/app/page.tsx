@@ -208,6 +208,10 @@ export default function WorkspacePage() {
       setFacts(mockDb.facts);
       setNotes(mockDb.notes);
       
+      if (mockDb.projects.length > 0 && !activeProject) {
+        setActiveProject(mockDb.projects[0]);
+      }
+      
       // Update local dashboard stats
       setStats({
         documents: mockDb.documents.length,
@@ -615,7 +619,11 @@ export default function WorkspacePage() {
 
   // Chat Query Call
   const handleSendQuery = async () => {
-    if (!queryInput.trim() || !activeProject) return;
+    if (!queryInput.trim()) return;
+    if (!activeProject) {
+      alert("Please select or create a project first!");
+      return;
+    }
     const currentQuery = queryInput;
     setQueryInput("");
     setChatLoading(true);
