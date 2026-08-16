@@ -638,18 +638,46 @@ export default function WorkspacePage() {
 
     if (isOffline) {
       setTimeout(() => {
+        const queryLower = currentQuery.toLowerCase();
+        let replyContent = "";
+        let citations: any[] = [];
+        
+        if (queryLower.includes("smtp")) {
+          replyContent = "SMTP (Simple Mail Transfer Protocol) is a TCP/IP protocol used in sending and receiving e-mail [1]. It is typically used with application layer protocols like POP3 or IMAP to retrieve messages.";
+          citations = [{
+            source: "Simple-Mail-Transfer-Protocol-SMTP.pdf",
+            source_type: "pdf",
+            text_snippet: "Simple Mail Transfer Protocol (SMTP) is the standard protocol for email services on a TCP/IP network."
+          }];
+        } else if (queryLower.includes("git") || queryLower.includes("antigravity")) {
+          replyContent = "The google-gemini/antigravity repository hosts the AI Research Workspace developer platform [1]. It provides modular components for ingestion, RAG vector/graph storage, and FastAPI routes.";
+          citations = [{
+            source: "google-gemini/antigravity",
+            source_type: "github",
+            text_snippet: "google-gemini/antigravity: An AI Research Workspace orchestrating LangGraph multi-agent pipelines."
+          }];
+        } else if (queryLower.includes("attention") || queryLower.includes("transformer")) {
+          replyContent = "The attention mechanism functions as a mapping of queries, keys, and values [1]. It helps extract contextual vectors for tokens, replacing traditional recurrence layers with self-attention steps.";
+          citations = [{
+            source: "Attention Is All You Need.pdf",
+            source_type: "pdf",
+            text_snippet: "An attention function can be described as mapping a query and a set of key-value pairs to an output."
+          }];
+        } else {
+          replyContent = `I parsed the local resources. Based on your query '${currentQuery}', no direct mock matches were found. Please launch the FastAPI backend server (using 'python main.py') to process this query against your actual documents using the active LangGraph RAG reasoning engine!`;
+          citations = [];
+        }
+
         const reply = {
           id: `asst-msg-${Date.now()}`,
           role: "assistant",
-          content: "I parsed the local resources. Based on your documents, the attention mechanism functions as a mapping of queries, keys, and values [1]. It helps extract contextual vectors for tokens. We run the query rewriter loop twice.",
-          citations: [
-            { source: "Attention Is All You Need.pdf", source_type: "pdf", text_snippet: "An attention function can be described as mapping a query and a set of key-value pairs to an output." }
-          ],
-          eval_metrics: { faithfulness: 0.99, answer_relevancy: 0.98, latency: 0.38 }
+          content: replyContent,
+          citations,
+          eval_metrics: { faithfulness: 0.99, answer_relevancy: 0.98, latency: 0.25 }
         };
         setMessages((prev) => [...prev, reply]);
         setChatLoading(false);
-      }, 2000);
+      }, 1500);
       return;
     }
 
