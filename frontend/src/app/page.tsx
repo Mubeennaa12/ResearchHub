@@ -52,6 +52,7 @@ const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
 const API_BASE = "http://localhost:8000";
 
 export default function WorkspacePage() {
+  const [isMounted, setIsMounted] = useState(false);
   // Navigation & Workspace State
   const [activeTab, setActiveTab] = useState<"dashboard" | "explorer" | "project" | "memory">("dashboard");
   const [workspaces, setWorkspaces] = useState<any[]>([]);
@@ -286,6 +287,10 @@ export default function WorkspacePage() {
       console.error("Error loading project details.");
     }
   }, [activeProject, isOffline, mockDb]);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     fetchWorkspaces();
@@ -693,6 +698,15 @@ export default function WorkspacePage() {
         return <Globe className="w-4 h-4 text-blue-400" />;
     }
   };
+
+  if (!isMounted) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-950 text-slate-400">
+        <Loader2 className="w-8 h-8 animate-spin text-violet-500 mr-2" />
+        <span>Loading AI Research Workspace...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-100 font-sans">
@@ -1237,6 +1251,16 @@ export default function WorkspacePage() {
                       )}
                     </div>
                   ))}
+
+                  {messages.length === 0 && !chatLoading && (
+                    <div className="flex flex-col items-center justify-center h-full text-center p-6 my-auto">
+                      <Brain className="w-10 h-10 text-violet-500/40 mb-3 animate-pulse" />
+                      <h4 className="text-xs font-semibold text-slate-300">Research Project Assistant</h4>
+                      <p className="text-[10px] text-slate-500 mt-1 max-w-[200px]">
+                        Ask queries about papers, GitHub repos, or documents loaded in this workspace.
+                      </p>
+                    </div>
+                  )}
                   
                   {chatLoading && (
                     <div className="flex items-center gap-2 text-xs text-slate-500 pl-2">
@@ -1259,7 +1283,7 @@ export default function WorkspacePage() {
                     />
                     <button 
                       onClick={handleSendQuery}
-                      className="absolute right-2 top-2 p-1.5 bg-violet-600 hover:bg-violet-500 rounded-lg text-white transition-colors"
+                      className="absolute right-2 top-2 z-10 cursor-pointer p-1.5 bg-violet-600 hover:bg-violet-500 rounded-lg text-white transition-colors"
                     >
                       <Send className="w-3.5 h-3.5" />
                     </button>
