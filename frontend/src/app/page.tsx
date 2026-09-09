@@ -642,29 +642,32 @@ export default function WorkspacePage() {
         let replyContent = "";
         let citations: any[] = [];
         
-        if (queryLower.includes("smtp")) {
-          replyContent = "SMTP (Simple Mail Transfer Protocol) is a TCP/IP protocol used in sending and receiving e-mail [1]. It is typically used with application layer protocols like POP3 or IMAP to retrieve messages.";
+        if (queryLower.includes("page") || queryLower.includes("explain page") || queryLower.includes("what is on page")) {
+          replyContent = `⚠️ [Offline Demo Mode]: The Python FastAPI backend (http://localhost:8000) is currently offline, so your uploaded PDF has not been parsed or indexed into the vector store yet.\n\nBecause of this, I cannot read page contents or answer questions about specific pages.\n\nTo enable real document parsing and LangGraph agent reasoning:\n1. Add your GEMINI_API_KEY to .env\n2. Run 'python main.py' in the backend terminal\n3. Upload your PDF and ask any question!`;
+          citations = [];
+        } else if (queryLower.includes("smtp")) {
+          replyContent = `[Offline Demo Sample]: SMTP (Simple Mail Transfer Protocol) is a TCP/IP protocol used in sending and receiving e-mail [1]. It is typically used with application layer protocols like POP3 or IMAP to retrieve messages.\n\n*(Note: Backend is offline. To analyze your actual uploaded PDFs with real AI, please start the Python server using 'python main.py')*`;
           citations = [{
             source: "Simple-Mail-Transfer-Protocol-SMTP.pdf",
             source_type: "pdf",
             text_snippet: "Simple Mail Transfer Protocol (SMTP) is the standard protocol for email services on a TCP/IP network."
           }];
         } else if (queryLower.includes("git") || queryLower.includes("antigravity")) {
-          replyContent = "The google-gemini/antigravity repository hosts the AI Research Workspace developer platform [1]. It provides modular components for ingestion, RAG vector/graph storage, and FastAPI routes.";
+          replyContent = "The google-gemini/antigravity repository hosts the AI Research Workspace developer platform [1]. It provides modular components for ingestion, RAG vector/graph storage, and FastAPI routes.\n\n*(Note: Backend is offline)*";
           citations = [{
             source: "google-gemini/antigravity",
             source_type: "github",
             text_snippet: "google-gemini/antigravity: An AI Research Workspace orchestrating LangGraph multi-agent pipelines."
           }];
         } else if (queryLower.includes("attention") || queryLower.includes("transformer")) {
-          replyContent = "The attention mechanism functions as a mapping of queries, keys, and values [1]. It helps extract contextual vectors for tokens, replacing traditional recurrence layers with self-attention steps.";
+          replyContent = "The attention mechanism functions as a mapping of queries, keys, and values [1]. It helps extract contextual vectors for tokens, replacing traditional recurrence layers with self-attention steps.\n\n*(Note: Backend is offline)*";
           citations = [{
             source: "Attention Is All You Need.pdf",
             source_type: "pdf",
             text_snippet: "An attention function can be described as mapping a query and a set of key-value pairs to an output."
           }];
         } else {
-          replyContent = `I parsed the local resources. Based on your query '${currentQuery}', no direct mock matches were found. Please launch the FastAPI backend server (using 'python main.py') to process this query against your actual documents using the active LangGraph RAG reasoning engine!`;
+          replyContent = `⚠️ [Offline Demo Mode]: The Python FastAPI backend is not running at http://localhost:8000. Real AI document search, page extraction, and LangGraph agent reasoning require the backend server.\n\nRun 'python main.py' in the workspace terminal to activate the real RAG engine.`;
           citations = [];
         }
 
@@ -677,7 +680,7 @@ export default function WorkspacePage() {
         };
         setMessages((prev) => [...prev, reply]);
         setChatLoading(false);
-      }, 1500);
+      }, 1200);
       return;
     }
 
@@ -1241,6 +1244,17 @@ export default function WorkspacePage() {
                     <MessageSquare className="w-4 h-4 text-violet-400" />
                     <span className="font-semibold text-sm text-slate-200">Agentic Research Chat</span>
                   </div>
+                  {isOffline ? (
+                    <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      Offline Demo Mode
+                    </span>
+                  ) : (
+                    <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                      <Activity className="w-3 h-3" />
+                      Backend Connected
+                    </span>
+                  )}
                 </div>
 
                 {/* Message display thread */}
@@ -1299,6 +1313,14 @@ export default function WorkspacePage() {
                 </div>
 
                 {/* Input query field */}
+                {isOffline && (
+                  <div className="px-3 py-1.5 bg-amber-500/10 border-t border-amber-500/20 flex items-center justify-between text-[11px] text-amber-300">
+                    <span className="flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                      <span><strong>Demo Mode:</strong> Python backend is offline. Run <code className="bg-slate-800 px-1 py-0.5 rounded text-violet-300 font-mono">python main.py</code> for real PDF analysis.</span>
+                    </span>
+                  </div>
+                )}
                 <div className="p-3 border-t border-slate-800 shrink-0 bg-slate-950/20">
                   <div className="relative">
                     <input 
