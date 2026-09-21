@@ -45,69 +45,36 @@ Most standard RAG implementations follow a primitive loop: *PDF ➔ Chunks ➔ E
 
 ## 🏛 System Architecture
 
-The following diagram illustrates the end-to-end architecture across client, API services, storage engines, and external provider layers:
+The following diagram illustrates the high-level system architecture across client, API services, hybrid storage, and foundation models:
 
 ```mermaid
-flowchart TB
-    subgraph ClientLayer ["Client Layer (Next.js 16 + Tailwind CSS)"]
-        UI_Dash["Dashboard & Analytics (RAG Metrics)"]
-        UI_Tree["Knowledge Explorer (Collections & Folders)"]
-        UI_Proj["Project Hub (Chat, Tasks, Bookmarks, Notes)"]
-        UI_Mem["Memory Manager (Persistent Facts)"]
+flowchart LR
+    subgraph UI ["💻 Client Layer"]
+        Next["Next.js 16 Web UI<br/>Dashboard • Explorer • Project Hub • Notes"]
     end
 
-    subgraph APILayer ["Backend Application Layer (FastAPI)"]
-        API_Auth["CORS & Request Validation"]
-        API_Routes["REST Endpoints (Workspaces, Ingest, Projects, Query)"]
-        API_DB["SQLAlchemy ORM (SQLite / PostgreSQL)"]
+    subgraph Backend ["⚡ Application Layer"]
+        FastAPI["FastAPI REST Server<br/>Workspaces • Ingestion • Memory • CRUD"]
+        Orchestrator["LangGraph Multi-Agent Engine<br/>Planner • Rewriter • Reasoner • Verifier"]
     end
 
-    subgraph OrchestrationLayer ["Agent Orchestration Layer (LangGraph)"]
-        LG_State["Orchestrator State Machine"]
-        subgraph Agents ["Specialized Agents"]
-            Planner["Planner Agent"]
-            Rewriter["Query Rewriter"]
-            Reasoner["Reasoning Evaluator"]
-            DomainAgents["Domain Agents (GitHub, Paper, Code, Report, QA)"]
-            CitationChecker["Citation Checker"]
-            QualityEval["Quality Evaluator (Faithfulness, Relevancy)"]
-        end
+    subgraph Storage ["💾 Storage & Retrieval"]
+        Qdrant[("Qdrant Vector DB<br/>Dense Similarity Search")]
+        Neo4j[("Neo4j Knowledge Graph<br/>Entity Relationships")]
+        SQL[("Relational DB<br/>SQLite / PostgreSQL")]
     end
 
-    subgraph IngestionLayer ["Token-Conserving Ingestion Engines"]
-        ING_PDF["PDF Parser (pypdf Page Coordinates)"]
-        ING_GH["GitHub Crawler (AST & Syntax Mapper)"]
-        ING_YT["YouTube Transcripts (~45s Windows)"]
-        ING_Web["Web & arXiv Ingestor (HTML / REST API)"]
-        Chunker["Syntax & Token Chunker (tiktoken)"]
+    subgraph Models ["🤖 Foundation Models"]
+        LLMs["Gemini 2.0 Flash • GPT-4o<br/>Claude 3.5 • Local Ollama"]
+        Embed["SentenceTransformers<br/>bge-small-en-v1.5 (Local)"]
     end
 
-    subgraph StorageLayer ["Hybrid Storage & Database Layer"]
-        Qdrant["Qdrant Vector DB (Dense Vectors, Workspace Payload Filtering)"]
-        Neo4j["Neo4j Knowledge Graph (Entities & Relations + In-Memory Fallback)"]
-        RDBMS[("Relational DB: SQLite / PostgreSQL")]
-        LocalEmbed["Local SentenceTransformers (bge-small-en-v1.5)"]
-    end
-
-    subgraph LLMProviders ["Pluggable Foundation Models"]
-        Gemini["Google Gemini (Default: 2.0 Flash Free Tier)"]
-        OpenAI["OpenAI (GPT-4o / GPT-4o-mini)"]
-        Anthropic["Anthropic (Claude 3.5 Sonnet)"]
-        Ollama["Local Ollama (Llama 3 / Mistral)"]
-    end
-
-    %% Flow connections
-    ClientLayer <-->|JSON REST Requests| APILayer
-    APILayer -->|Run Workflows| OrchestrationLayer
-    APILayer -->|Store Metadata| API_DB --> RDBMS
-    APILayer -->|Trigger Ingestion| IngestionLayer
-
-    IngestionLayer --> Chunker
-    Chunker -->|Dense Embeddings| LocalEmbed --> Qdrant
-    Chunker -->|Entity Extraction| Neo4j
-
-    OrchestrationLayer <-->|Hybrid Search| StorageLayer
-    OrchestrationLayer <-->|Reasoning & Generation| LLMProviders
+    Next <-->|REST API / JSON| FastAPI
+    FastAPI <--> Orchestrator
+    FastAPI --> SQL
+    FastAPI -->|Document Embeddings| Embed --> Qdrant
+    Orchestrator <--> Storage
+    Orchestrator <--> Models
 ```
 
 ---
@@ -117,81 +84,24 @@ flowchart TB
 When a query is submitted to a project, the request executes through an autonomous, state-driven LangGraph pipeline with cyclic reasoning loops and hallucination verification:
 
 ```mermaid
-stateDiagram-v2
-    [*] --> Planner : User Query + Workspace Memory
-
-    state Planner {
-        direction TB
-        p1: Analyze Query Intent
-        p2: Select Search Strategies (Vector, Graph, Web)
-        p3: Route to Domain Agent
-    }
-
-    Planner --> QueryRewriter : Formulate Search Prompts
-
-    state QueryRewriter {
-        direction TB
-        qr1: Strip Conversational Noise
-        qr2: Expand Domain Synonyms
-    }
-
-    QueryRewriter --> ParallelRetriever : Dispatched Sub-queries
-
-    state ParallelRetriever {
-        direction LR
-        VectorSearch: Qdrant Vector Search
-        GraphSearch: Neo4j Entity Traversal
-        WebSearch: Tavily / DuckDuckGo Search
-    }
-
-    ParallelRetriever --> ContextMerger : Raw Retrieved Chunks
-
-    state ContextMerger {
-        direction TB
-        cm1: Deduplicate Chunks by URI
-        cm2: Lexical TF-Overlap Reranking
-        cm3: Assign Numbered Citations [1], [2]
-    }
-
-    ContextMerger --> ReasoningAgent : Merged Context + History
-
-    state ReasoningAgent {
-        direction TB
-        r1: Evaluate Context Sufficiency
-        r2: Check if Loop Threshold Exceeded
-    }
-
-    ReasoningAgent --> QueryRewriter : Context Insufficient (Loop Count < 3)
-    ReasoningAgent --> SpecializedAgent : Context Sufficient / Max Loops Reached
-
-    state SpecializedAgent {
-        direction TB
-        GitHubAgent: Codebase architecture & class trees
-        PaperAgent: Methodology & experimental results
-        CodeAgent: Implementation & runnable code
-        ReportAgent: Structured executive summaries
-        QAAgent: Direct synthesized answers
-    }
-
-    SpecializedAgent --> CitationChecker : Draft Response + Chunks
-
-    state CitationChecker {
-        direction TB
-        cc1: Verify Every Statement Grounding
-        cc2: Strip Unsupported Hallucinations
-        cc3: Validate Citation Footnotes
-    }
-
-    CitationChecker --> QualityEvaluator : Verified Grounded Answer
-
-    state QualityEvaluator {
-        direction TB
-        qe1: Compute Faithfulness Score (0.0 - 1.0)
-        qe2: Compute Answer Relevancy Score (0.0 - 1.0)
-        qe3: Record Pipeline Latency
-    }
-
-    QualityEvaluator --> [*] : Stream Final Response to Client
+flowchart TD
+    Start([👤 User Query + Workspace Memory]) --> Plan["1. Planner Agent<br/>Deconstructs Query & Selects Search Strategy"]
+    Plan --> Rewrite["2. Query Rewriter<br/>Optimizes Sub-queries for Target Engines"]
+    
+    Rewrite --> Search{"3. Parallel Hybrid Search"}
+    Search -->|Dense Semantic| Vec["Vector Search (Qdrant)"]
+    Search -->|Entity Relationships| Graph["Graph Search (Neo4j)"]
+    Search -->|Live Internet| Web["Web Search (Tavily / DuckDuckGo)"]
+    
+    Vec & Graph & Web --> Merge["4. Context Merger & Reranker<br/>URI Deduplication + Lexical Overlap Scoring"]
+    
+    Merge --> Reason{"5. Reasoner Agent<br/>Is Context Sufficient?"}
+    Reason -->|Insufficient (Loop < 3)| Rewrite
+    Reason -->|Sufficient| Agent["6. Specialized Domain Agent<br/>GitHub • Paper • Code • Report • QA"]
+    
+    Agent --> Cite["7. Citation Checker<br/>Grounds Every Claim in Retrieved Chunks"]
+    Cite --> Eval["8. Quality Evaluator<br/>Computes Faithfulness & Relevancy Scores"]
+    Eval --> Done([✅ Verified Answer with Clickable Citations])
 ```
 
 ---
@@ -201,27 +111,17 @@ stateDiagram-v2
 The platform structures knowledge and collaborative assets hierarchically:
 
 ```mermaid
-graph TD
-    User["Research User"] --> WS["Workspace (e.g., 'Autonomous Driving')"]
-    
-    %% Workspace Core Branches
-    WS --> Memory["Workspace Facts Memory<br/>(Persistent Preferences: e.g., 'Uses PyTorch, Qdrant')"]
-    WS --> Collections["Collections (e.g., 'Perception', 'Planning')"]
-    WS --> Projects["Projects (e.g., 'Scene Prediction 2026')"]
+flowchart TD
+    User([🏢 Workspace]) --> Docs["📁 Knowledge Base<br/>Collections & Folders"]
+    User --> Proj["🚀 Research Projects<br/>Focused Topic Boards"]
+    User --> Mem["🧠 Workspace Memory<br/>Persistent User Facts & Preferences"]
 
-    %% Collection Structure
-    Collections --> Folders["Folders (e.g., 'Papers', 'Repos', 'Lectures')"]
-    Folders --> Docs["Documents"]
-    Docs --> Doc1["PDFs (Page-by-page coordinates)"]
-    Docs --> Doc2["GitHub Repos (AST Class/Function Maps)"]
-    Docs --> Doc3["YouTube Transcripts (~45s Windows)"]
-    Docs --> Doc4["Web Articles & arXiv Preprints"]
+    Docs --> Items["📄 Ingested Documents<br/>PDFs • GitHub Repos • YouTube • Web Articles"]
 
-    %% Project Structure
-    Projects --> Checklists["Project Checklists (Interactive Tasks)"]
-    Projects --> Bookmarks["Bookmarked Sources (Quick Document References)"]
-    Projects --> Notes["Personal Research Notes (Markdown)"]
-    Projects --> Chats["Chat Sessions (Full Reasoning Logs & Citations)"]
+    Proj --> T1["✅ Task Checklists"]
+    Proj --> T2["🔖 Bookmarked Sources"]
+    Proj --> T3["📝 Markdown Research Notes"]
+    Proj --> T4["💬 Chat Sessions & Verified Citations"]
 ```
 
 ---
