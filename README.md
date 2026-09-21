@@ -48,33 +48,24 @@ Most standard RAG implementations follow a primitive loop: *PDF ➔ Chunks ➔ E
 The following diagram illustrates the high-level system architecture across client, API services, hybrid storage, and foundation models:
 
 ```mermaid
-flowchart LR
-    subgraph UI ["💻 Client Layer"]
-        Next["Next.js 16 Web UI<br/>Dashboard • Explorer • Project Hub • Notes"]
-    end
+graph TD
+    UI["Next.js 16 Web UI<br/>(Dashboard, Explorer, Project Hub, Notes)"]
+    FastAPI["FastAPI REST Server<br/>(Workspaces, Ingestion, Memory, CRUD)"]
+    Orchestrator["LangGraph Multi-Agent Engine<br/>(Planner, Rewriter, Reasoner, Verifier)"]
+    Qdrant[("Qdrant Vector DB<br/>Dense Similarity Search")]
+    Neo4j[("Neo4j Knowledge Graph<br/>Entity Relationships")]
+    SQL[("Relational DB<br/>SQLite / PostgreSQL")]
+    LLMs["Foundation LLMs<br/>(Gemini, GPT-4o, Claude, Ollama)"]
+    Embed["SentenceTransformers<br/>(Local BGE-small Embeddings)"]
 
-    subgraph Backend ["⚡ Application Layer"]
-        FastAPI["FastAPI REST Server<br/>Workspaces • Ingestion • Memory • CRUD"]
-        Orchestrator["LangGraph Multi-Agent Engine<br/>Planner • Rewriter • Reasoner • Verifier"]
-    end
-
-    subgraph Storage ["💾 Storage & Retrieval"]
-        Qdrant[("Qdrant Vector DB<br/>Dense Similarity Search")]
-        Neo4j[("Neo4j Knowledge Graph<br/>Entity Relationships")]
-        SQL[("Relational DB<br/>SQLite / PostgreSQL")]
-    end
-
-    subgraph Models ["🤖 Foundation Models"]
-        LLMs["Gemini 2.0 Flash • GPT-4o<br/>Claude 3.5 • Local Ollama"]
-        Embed["SentenceTransformers<br/>bge-small-en-v1.5 (Local)"]
-    end
-
-    Next <-->|REST API / JSON| FastAPI
-    FastAPI <--> Orchestrator
+    UI -->|REST API Requests| FastAPI
     FastAPI --> SQL
-    FastAPI -->|Document Embeddings| Embed --> Qdrant
-    Orchestrator <--> Storage
-    Orchestrator <--> Models
+    FastAPI -->|Document Embeddings| Embed
+    Embed --> Qdrant
+    FastAPI --> Orchestrator
+    Orchestrator --> Qdrant
+    Orchestrator --> Neo4j
+    Orchestrator --> LLMs
 ```
 
 ---
@@ -85,23 +76,24 @@ When a query is submitted to a project, the request executes through an autonomo
 
 ```mermaid
 flowchart TD
-    Start([👤 User Query + Workspace Memory]) --> Plan["1. Planner Agent<br/>Deconstructs Query & Selects Search Strategy"]
-    Plan --> Rewrite["2. Query Rewriter<br/>Optimizes Sub-queries for Target Engines"]
+    Start["User Query + Workspace Memory"] --> Plan["1. Planner Agent<br/>Deconstructs Query & Selects Search Strategy"]
+    Plan --> Rewrite["2. Query Rewriter<br/>Optimizes Sub-queries for Engines"]
     
-    Rewrite --> Search{"3. Parallel Hybrid Search"}
-    Search -->|Dense Semantic| Vec["Vector Search (Qdrant)"]
-    Search -->|Entity Relationships| Graph["Graph Search (Neo4j)"]
-    Search -->|Live Internet| Web["Web Search (Tavily / DuckDuckGo)"]
+    Rewrite --> Vec["Vector Search (Qdrant)"]
+    Rewrite --> Graph["Graph Search (Neo4j)"]
+    Rewrite --> Web["Web Search (Tavily / DuckDuckGo)"]
     
-    Vec & Graph & Web --> Merge["4. Context Merger & Reranker<br/>URI Deduplication + Lexical Overlap Scoring"]
+    Vec --> Merge["4. Context Merger & Reranker<br/>URI Deduplication + Lexical Scoring"]
+    Graph --> Merge
+    Web --> Merge
     
     Merge --> Reason{"5. Reasoner Agent<br/>Is Context Sufficient?"}
-    Reason -->|Insufficient (Loop < 3)| Rewrite
-    Reason -->|Sufficient| Agent["6. Specialized Domain Agent<br/>GitHub • Paper • Code • Report • QA"]
+    Reason -->|Insufficient - Loop < 3| Rewrite
+    Reason -->|Sufficient| Agent["6. Specialized Domain Agent<br/>(GitHub, Paper, Code, Report, QA)"]
     
-    Agent --> Cite["7. Citation Checker<br/>Grounds Every Claim in Retrieved Chunks"]
-    Cite --> Eval["8. Quality Evaluator<br/>Computes Faithfulness & Relevancy Scores"]
-    Eval --> Done([✅ Verified Answer with Clickable Citations])
+    Agent --> Cite["7. Citation Checker<br/>Grounds Claims in Retrieved Chunks"]
+    Cite --> Eval["8. Quality Evaluator<br/>Faithfulness & Relevancy Scoring"]
+    Eval --> Done["Verified Answer with Clickable Citations"]
 ```
 
 ---
@@ -111,17 +103,17 @@ flowchart TD
 The platform structures knowledge and collaborative assets hierarchically:
 
 ```mermaid
-flowchart TD
-    User([🏢 Workspace]) --> Docs["📁 Knowledge Base<br/>Collections & Folders"]
-    User --> Proj["🚀 Research Projects<br/>Focused Topic Boards"]
-    User --> Mem["🧠 Workspace Memory<br/>Persistent User Facts & Preferences"]
+graph TD
+    WS["Workspace"] --> Docs["Knowledge Base<br/>(Collections & Folders)"]
+    WS --> Proj["Research Projects<br/>(Focused Topic Boards)"]
+    WS --> Mem["Workspace Memory<br/>(Persistent User Facts & Preferences)"]
 
-    Docs --> Items["📄 Ingested Documents<br/>PDFs • GitHub Repos • YouTube • Web Articles"]
+    Docs --> Items["Ingested Documents<br/>(PDFs, GitHub Repos, YouTube, Web)"]
 
-    Proj --> T1["✅ Task Checklists"]
-    Proj --> T2["🔖 Bookmarked Sources"]
-    Proj --> T3["📝 Markdown Research Notes"]
-    Proj --> T4["💬 Chat Sessions & Verified Citations"]
+    Proj --> T1["Task Checklists"]
+    Proj --> T2["Bookmarked Sources"]
+    Proj --> T3["Markdown Research Notes"]
+    Proj --> T4["Chat Sessions & Verified Citations"]
 ```
 
 ---
