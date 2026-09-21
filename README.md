@@ -49,14 +49,14 @@ The following diagram illustrates the high-level system architecture across clie
 
 ```mermaid
 graph TD
-    UI["Next.js 16 Web UI<br/>(Dashboard, Explorer, Project Hub, Notes)"]
-    FastAPI["FastAPI REST Server<br/>(Workspaces, Ingestion, Memory, CRUD)"]
-    Orchestrator["LangGraph Multi-Agent Engine<br/>(Planner, Rewriter, Reasoner, Verifier)"]
-    Qdrant[("Qdrant Vector DB<br/>Dense Similarity Search")]
-    Neo4j[("Neo4j Knowledge Graph<br/>Entity Relationships")]
-    SQL[("Relational DB<br/>SQLite / PostgreSQL")]
-    LLMs["Foundation LLMs<br/>(Gemini, GPT-4o, Claude, Ollama)"]
-    Embed["SentenceTransformers<br/>(Local BGE-small Embeddings)"]
+    UI["Next.js 16 Web UI<br/>Dashboard & Chat"]
+    FastAPI["FastAPI REST Server<br/>Endpoints & ORM"]
+    Orchestrator["LangGraph Engine<br/>Agent State Machine"]
+    Qdrant[("Qdrant Vector DB<br/>Dense Similarity")]
+    Neo4j[("Neo4j Graph DB<br/>Knowledge Graph")]
+    SQL[("Relational DB<br/>SQLite / Postgres")]
+    LLMs["LLM Provider Layer<br/>Gemini, OpenAI, Claude"]
+    Embed["SentenceTransformers<br/>Local BGE Embeddings"]
 
     UI -->|REST API Requests| FastAPI
     FastAPI --> SQL
@@ -68,6 +68,18 @@ graph TD
     Orchestrator --> LLMs
 ```
 
+### 🔍 Architecture & Implementation Details
+
+| Layer / Component | File Reference | Technical Implementation & Responsibility |
+|---|---|---|
+| **Client Layer (Next.js 16)** | [`frontend/src/app/page.tsx`](file:///d:/AI%20_Research_%20Workspace/frontend/src/app/page.tsx) | Responsive React UI built with Tailwind CSS. Houses the Analytics Dashboard, Knowledge Explorer tree, Project Hub, Markdown notes editor, and real-time interactive citation cards. Features an automatic offline mock mode fallback. |
+| **Application Layer (FastAPI)** | [`api/routes.py`](file:///d:/AI%20_Research_%20Workspace/api/routes.py) | High-throughput asynchronous backend server exposing REST endpoints for workspaces, collections, folders, document ingestion, project task checklists, and RAG chat execution. |
+| **Agent Orchestrator** | [`orchestrator/pipeline.py`](file:///d:/AI%20_Research_%20Workspace/orchestrator/pipeline.py) | State-driven multi-agent execution machine compiled with LangGraph. Coordinates planning, query rewriting, parallel hybrid retrieval, sufficiency reasoning loops, and citation verification. |
+| **Dense Vector Index** | [`knowledge_base/vector_store.py`](file:///d:/AI%20_Research_%20Workspace/knowledge_base/vector_store.py) | Qdrant vector database integrating local `SentenceTransformers` (`BAAI/bge-small-en-v1.5`). Employs payload filtering by `workspace_id` to strictly isolate research documents across workspaces. |
+| **Entity Knowledge Graph** | [`knowledge_base/graph_store.py`](file:///d:/AI%20_Research_%20Workspace/knowledge_base/graph_store.py) | Neo4j property graph mapping structural connections between entities, methodologies, and datasets. Features an automatic in-memory dictionary graph fallback if Neo4j is offline. |
+| **Relational Metadata Store** | [`api/models.py`](file:///d:/AI%20_Research_%20Workspace/api/models.py) | SQLAlchemy schemas managing workspaces, projects, task checklists, bookmarks, chat session histories, and persistent user memory facts. Supports SQLite and PostgreSQL. |
+| **Pluggable LLM Layer** | [`agents/llm_provider.py`](file:///d:/AI%20_Research_%20Workspace/agents/llm_provider.py) | Unified abstraction layer supporting Google Gemini (Flash free tier), OpenAI (GPT-4o), Anthropic (Claude 3.5 Sonnet), and local Ollama models. |
+
 ---
 
 ## 🔄 LangGraph Multi-Agent Workflow
@@ -76,45 +88,81 @@ When a query is submitted to a project, the request executes through an autonomo
 
 ```mermaid
 flowchart TD
-    Start["User Query + Workspace Memory"] --> Plan["1. Planner Agent<br/>Deconstructs Query & Selects Search Strategy"]
-    Plan --> Rewrite["2. Query Rewriter<br/>Optimizes Sub-queries for Engines"]
+    Start["User Query & Context"] --> Plan["1. Planner Agent<br/>Formulates Search Plan"]
+    Plan --> Rewrite["2. Query Rewriter<br/>Optimizes Sub-queries"]
     
-    Rewrite --> Vec["Vector Search (Qdrant)"]
-    Rewrite --> Graph["Graph Search (Neo4j)"]
-    Rewrite --> Web["Web Search (Tavily / DuckDuckGo)"]
+    Rewrite --> Vec["Vector Search<br/>Dense Semantic Retrieval"]
+    Rewrite --> Graph["Graph Search<br/>Entity Relationship Walk"]
+    Rewrite --> Web["Live Web Search<br/>Tavily / DuckDuckGo"]
     
-    Vec --> Merge["4. Context Merger & Reranker<br/>URI Deduplication + Lexical Scoring"]
+    Vec --> Merge["3. Context Merger<br/>Deduplication & Rerank"]
     Graph --> Merge
     Web --> Merge
     
-    Merge --> Reason{"5. Reasoner Agent<br/>Is Context Sufficient?"}
+    Merge --> Reason{"4. Reasoner Agent<br/>Context Sufficient?"}
     Reason -->|Insufficient - Loop < 3| Rewrite
-    Reason -->|Sufficient| Agent["6. Specialized Domain Agent<br/>(GitHub, Paper, Code, Report, QA)"]
+    Reason -->|Sufficient| Agent["5. Specialized Agent<br/>Domain Specific Answer"]
     
-    Agent --> Cite["7. Citation Checker<br/>Grounds Claims in Retrieved Chunks"]
-    Cite --> Eval["8. Quality Evaluator<br/>Faithfulness & Relevancy Scoring"]
-    Eval --> Done["Verified Answer with Clickable Citations"]
+    Agent --> Cite["6. Citation Checker<br/>Grounding Verification"]
+    Cite --> Eval["7. Quality Evaluator<br/>Faithfulness Scoring"]
+    Eval --> Done["Verified Final Answer<br/>Clickable Citations"]
 ```
+
+### 🧠 Agent Implementation & Execution Flow
+
+1. **Planner Agent ([`agents/planner.py`](file:///d:/AI%20_Research_%20Workspace/agents/planner.py))**: Deconstructs user queries, reviews workspace memory facts, determines search intent, and selects target search strategies (vector similarity, knowledge graph walk, or live web search).
+2. **Query Rewriter**: Strips conversational filler, expands technical domain synonyms, and formats distinct queries tailored for dense embeddings vs keyword indices.
+3. **Parallel Hybrid Retrieval ([`retrieval/`](file:///d:/AI%20_Research_%20Workspace/retrieval))**: Executes parallel search requests across:
+   - *Dense Vector Store (`vector_search.py`)*: Semantic chunk matching in Qdrant.
+   - *Knowledge Graph (`graph_search.py`)*: Entity relationship walks in Neo4j.
+   - *Web Search (`web_search.py`)*: Live web retrieval via Tavily API with an automatic DuckDuckGo HTML scraping fallback.
+4. **Context Merger & Reranker ([`retrieval/context_merger.py`](file:///d:/AI%20_Research_%20Workspace/retrieval/context_merger.py))**: Deduplicates retrieved chunks by URI and scores candidate excerpts using lexical term-frequency (TF) overlap combined with dense similarity, assigning standard numbered reference tags `[1]`, `[2]`.
+5. **Sufficiency Reasoner ([`agents/reasoning.py`](file:///d:/AI%20_Research_%20Workspace/agents/reasoning.py))**: Evaluates whether the assembled context answers the query completely and objectively. If gaps remain and the loop counter is below threshold (maximum 3 iterations), it cycles back to the Query Rewriter with refined keywords.
+6. **Specialized Domain Agents ([`agents/specialized_agents.py`](file:///d:/AI%20_Research_%20Workspace/agents/specialized_agents.py))**: Synthesizes the draft response using domain-specific personas:
+   - `GitHubAgent`: Codebase architectural walkthroughs, AST function trees, and dependency tracking.
+   - `PaperAgent`: Academic paper methodology analysis, theorem explanations, and experimental benchmarks.
+   - `CodeAgent`: Practical implementation scripts and runnable snippets.
+   - `ReportAgent`: Structured executive comparison reports and architectural trade-off matrices.
+   - `QAAgent`: Direct, concise, and grounded answers.
+7. **Citation Checker ([`agents/citation_checker.py`](file:///d:/AI%20_Research_%20Workspace/agents/citation_checker.py))**: Performs sentence-by-sentence hallucination validation, ensuring every factual claim is strictly supported by retrieved chunks, removing unsupported claims, and attaching clickable source footnotes.
+8. **Quality Evaluator ([`orchestrator/evaluator.py`](file:///d:/AI%20_Research_%20Workspace/orchestrator/evaluator.py))**: Evaluates RAG quality metrics (Faithfulness score, Answer Relevancy score, and Execution Latency) recorded to the database for analytics.
 
 ---
 
 ## 🗂 Data Hierarchy & Project Management
 
-The platform structures knowledge and collaborative assets hierarchically:
+The platform structures research assets hierarchically to enable multi-project research workflows:
 
 ```mermaid
 graph TD
-    WS["Workspace"] --> Docs["Knowledge Base<br/>(Collections & Folders)"]
-    WS --> Proj["Research Projects<br/>(Focused Topic Boards)"]
-    WS --> Mem["Workspace Memory<br/>(Persistent User Facts & Preferences)"]
+    WS["Workspace Hub<br/>Domain Research Scope"] --> Docs["Knowledge Base<br/>Collections & Folders"]
+    WS --> Proj["Research Projects<br/>Focused Topic Boards"]
+    WS --> Mem["Workspace Memory<br/>Persistent User Facts"]
 
-    Docs --> Items["Ingested Documents<br/>(PDFs, GitHub Repos, YouTube, Web)"]
+    Docs --> Items["Ingested Sources<br/>PDF, GitHub, YouTube, Web"]
 
     Proj --> T1["Task Checklists"]
     Proj --> T2["Bookmarked Sources"]
-    Proj --> T3["Markdown Research Notes"]
-    Proj --> T4["Chat Sessions & Verified Citations"]
+    Proj --> T3["Markdown Notes"]
+    Proj --> T4["Chat Sessions"]
 ```
+
+### 📂 Hierarchical Structure & Features
+
+- **Workspace Layer ([`api/models.py`](file:///d:/AI%20_Research_%20Workspace/api/models.py))**: High-level domain containers (e.g., *"Autonomous Systems"*, *"Genomic NLP"*). Encapsulates all collections, projects, and memory facts.
+- **Knowledge Base Layer**:
+  - **Collections**: Logical groupings within a workspace (e.g., *"Perception"*, *"Planning"*, *"Transformers"*).
+  - **Folders**: Sub-directories for organized asset segregation (e.g., *"Papers"*, *"Repositories"*, *"Lectures"*).
+  - **Documents**: Ingested files and URLs indexed into dense vectors and graph entities.
+- **Project Management Layer**:
+  - **Projects**: Goal-oriented research initiatives (e.g., *"Scene Prediction v2"*).
+  - **Task Checklists**: Real-time interactive TO-DO lists directly attached to the project.
+  - **Bookmarked Sources**: Fast references to key documents cited frequently in the project.
+  - **Markdown Notes**: Built-in notepad supporting persistent Markdown research notes.
+  - **Chat Sessions**: Complete conversation history storing LLM reasoning logs, verified citations, and evaluation metrics.
+- **Dual-Tier Memory Architecture**:
+  - *Session Memory*: Conversation turn history preserved during active chat sessions.
+  - *Workspace Memory*: Long-term persistent facts (e.g., user preferences, standard frameworks, baseline models) injected automatically into every agent query.
 
 ---
 
