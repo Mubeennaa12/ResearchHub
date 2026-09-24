@@ -1,7 +1,8 @@
 """
-Evaluator. Computes RAG evaluation metrics (Faithfulness, Answer Relevancy, Context Recall) for dashboard stats and system tracking.
+Evaluator. Computess RAG evaluation metrics (Faithfulness, Answer Relevancy, Context Recall) for dashboard stats and system tracking.
 """
 
+import json
 import json
 import logging
 from agents.llm_provider import LLMProvider

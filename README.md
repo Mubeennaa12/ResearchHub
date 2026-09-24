@@ -203,7 +203,18 @@ GEMINI_MODEL=gemini-2.0-flash
 
 ---
 
-## 📦 Repository Layout
+## 📦 Repository Layout & Structure
+
+This repository is structured as a full-stack monorepo containing a modular Python backend (FastAPI + LangGraph) and a modern Next.js 16 frontend.
+
+### 🧩 Core Modules Overview:
+- **`agents/`**: Autonomous agent personas (`Planner`, `Reasoning`, `CitationChecker`, `SpecializedAgents`) and the unified multi-LLM provider abstraction layer.
+- **`api/`**: FastAPI REST server, SQLAlchemy database models (workspaces, projects, checklists, notes, chat history), and session handlers.
+- **`ingestion/`**: Token-conserving multi-modal parsers for page-level PDFs, GitHub AST dependency mapping, YouTube timestamped transcripts, and arXiv papers.
+- **`knowledge_base/`**: Syntax/token chunkers, local Qdrant vector store (`bge-small-en-v1.5`), and Neo4j property graph with in-memory fallback.
+- **`retrieval/`**: Hybrid retrieval engine coordinating vector similarity, entity graph walks, live web search, and lexical TF-overlap reranking.
+- **`orchestrator/`**: LangGraph cyclic state machine orchestrating iterative retrieval loops, specialized agent routing, and RAG quality evaluation.
+- **`frontend/`**: Next.js 16 web application featuring an interactive dashboard, workspace file explorer, markdown notes editor, and verified citation cards.
 
 ```
 AI _Research_ Workspace/
